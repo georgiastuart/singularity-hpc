@@ -40,6 +40,17 @@ def get_parser():
         help="custom path to settings file.",
     )
 
+    # On the fly updates to config params
+    parser.add_argument(
+        "-c",
+        dest="config_params",
+        help=""""customize a config value on the fly to ADD/SET/REMOVE for a command
+shpc -c set:key:value <command> <args>
+shpc -c add:registry:/tmp/registry <command> <args>
+shpc -c rm:registry:/tmp/registry""",
+        action="append",
+    )
+
     parser.add_argument(
         "--version",
         dest="version",
@@ -88,6 +99,13 @@ def get_parser():
     install.add_argument(
         "install_recipe",
         help="recipe to install\nshpc install python\nshpc install python:3.9.5-alpine",
+    )
+    install.add_argument(
+        "--symlink-tree",
+        dest="symlink",
+        help="install to symlink tree too.",
+        default=False,
+        action="store_true",
     )
 
     # List installed modules
@@ -147,7 +165,6 @@ def get_parser():
 
     config.add_argument(
         "--central",
-        "-c",
         dest="central",
         help="make edits to the central config file.",
         default=False,

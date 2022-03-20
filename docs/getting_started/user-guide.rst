@@ -52,6 +52,11 @@ You can then easily install, load, and use modules:
     $ module load biocontainers/samtools
     $ samtools
 
+Or set a configuration value on the fly for any command:
+
+.. code-block:: console
+
+    $ shpc install -c set:symlink_base:/tmp/modules biocontainers/samtools
 
 The above assumes that you've installed the software, and have already
 added the modules folder to be seen by your module software. If your module
@@ -174,11 +179,17 @@ variable replacement. A summary table of variables is included below, and then f
    * - container_tech
      - The container technology to use (singularity or podman)
      - singularity
+   * - symlink_base
+     - If set, where you want to install a simplified module tree to using ``--symlink-tree``
+     - $root_dir/symlinks
+   * - symlink_tree
+     - If set to true, ALWAYS generate a symlink tree given that a symlink base is defined regardless of ``--symlink-tree`` flag
+     - false
    * - updated_at
      - a timestamp to keep track of when you last saved
      - never
    * - default_version
-     - A boolean to indicate generating a .version file (LMOD or lua modules only)
+     - A boolean to indicate whether a default version will be arbitrarily chosen, when multiple versions are available, and none is explicitly requested
      - true
    * - singularity_module
      - if defined, add to module script to load this Singularity module first
@@ -231,6 +242,14 @@ variable replacement. A summary table of variables is included below, and then f
    * - features
      - A key, value paired set of features to add to the container (see table below)
      - All features default to null
+
+
+Note that any configuration value can be set permanently by using ``shpc config``
+or manually editing the file, but you can also set config values "one off" as follows:
+
+.. code-block:: console
+
+    $ shpc install -c set:symlink_base:/tmp/modules ghcr.io/autamus/clingo
 
 
 These settings will be discussed in more detail in the following sections.
@@ -358,6 +377,58 @@ you can add or remove entries via the config variable ``registry``
 
 # Note that "add" is used for lists of things (e.g., the registry config variable is a list)
 and "set" is used to set a key value pair.
+
+Symlink Base
+------------
+
+By default, your modules are installed to your ``module_base`` described above with a complete
+namespace, meaning the container registry from where they arise. We do this so that the namespace
+is consistent and there are no conflicts. However, if you want a simplified tree to install from,
+meaning the module full names are _just_ the final container name, you can set the ``symlink_base``
+in your settings to a different root. For example, let's say we want to install a set of modules.
+We can use the default ``symlink_base`` of ``$root_dir/symlinks`` or set our own ``symlink_base``
+in the settings.yaml. We could do:
+
+.. code-block:: console
+
+    $ shpc install ghcr.io/autamus/clingo --symlink-tree
+    $ shpc install ghcr.io/autamus/samtools --symlink-tree
+
+Then, for example, if you want to load the modules, you'll see the shorter names are
+available!
+
+.. code-block:: console
+
+    $ module use ./symlinks
+    $ module load clingo/5.5.1/module
+
+This is much more efficient compared to the install that uses the full paths:
+
+.. code-block:: console
+
+    $ module use ./modules
+    $ module load ghcr.io/autamus/clingo/5.5.1/module
+
+Since we install based on the container name *and* version tag, this even gives you
+the ability to install versions from different container bases in the same root.
+If there is a conflict, you will be given the option to exit (and abort) or continue.
+Finally, if you need an easy way to run through the containers you've already installed
+to create the links:
+
+
+.. code-block:: console
+
+    for module in $(shpc list); do
+        shpc install $module --symlink-tree
+    done
+
+And that will reinstall the modules you have installed, but in their symlink tree location.
+
+
+.. warning::
+
+    Be cautious about creating symlinks in containers or other contexts where a bind
+    could eliminate the symlink or make the path non-existent.
 
 
 Module Names

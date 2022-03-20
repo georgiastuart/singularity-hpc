@@ -139,6 +139,8 @@ settingsProperties = {
     "environment_file": {"type": "string"},
     "default_version": {"type": "boolean"},
     "enable_tty": {"type": "boolean"},
+    "symlink_base": {"type": ["string", "null"]},
+    "symlink_tree": {"type": "boolean"},
     "wrapper_scripts": wrapper_scripts,
     "container_tech": {"type": "string", "enum": ["singularity", "podman", "docker"]},
     "singularity_shell": {"type": "string", "enum": shells},

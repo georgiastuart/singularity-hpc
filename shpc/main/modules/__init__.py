@@ -11,7 +11,6 @@ from jinja2 import Template
 
 from datetime import datetime
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -53,6 +52,8 @@ class ModuleBase(BaseClient):
         # Exit early if the module directory for some reason was removed
         if not os.path.exists(module_dir):
             return
+
+        # Cleanup symlink, then module directory
         shutil.rmtree(module_dir)
 
         # If directories above it are empty, remove
@@ -102,13 +103,14 @@ class ModuleBase(BaseClient):
 
     def _uninstall(self, module_dir, name, force=False):
         """
-        Sub function, so we can pass more than one folder from uninstall
+        Uninstall a module directory by name, including possible symlinks.
         """
         if os.path.exists(module_dir):
             if not force:
                 msg = "%s, and all content below it? " % name
                 if not utils.confirm_uninstall(msg, force):
                     return
+            self._cleanup_symlink(module_dir)
             self._cleanup(module_dir)
             logger.info("%s and all subdirectories have been removed." % name)
         else:
@@ -168,6 +170,81 @@ class ModuleBase(BaseClient):
             short=short,
         )
 
+    # Symbolik links
+
+    def get_symlink_path(self, module_dir):
+        """
+        Should only be called given a self.settings.symlink_base is set
+        """
+        if not self.settings.symlink_base:
+            return
+
+        symlink_base_name = os.path.join(self.settings.symlink_base, *module_dir.split(os.sep)[-2:])
+
+        # With Lmod and default_version==True, the symlinks points to module.lua itself,
+        # and its name needs to end with `.lua` too
+        if self.module_extension == "lua" and self.settings.default_version == True:
+            return symlink_base_name + ".lua"
+        else:
+            return symlink_base_name
+
+    def create_symlink(self, module_dir):
+        """
+        Create the symlink if desired by the user!
+        """        
+        symlink_path = self.get_symlink_path(module_dir)
+        if os.path.exists(symlink_path):
+            os.unlink(symlink_path)
+        symlink_dir = os.path.dirname(symlink_path)
+
+        # If the parent directory doesn't exist, make it
+        if not os.path.exists(symlink_dir):
+            utils.mkdirp([symlink_dir])
+
+        # With Lmod, default_version==False can't be made to work with symlinks at the module.lua level
+        if self.module_extension == "lua" and self.settings.default_version == False:
+            symlink_target = module_dir
+        else:
+            symlink_target = os.path.join(module_dir, self.modulefile)
+        logger.info("Creating link %s -> %s" % (symlink_target, symlink_path))
+
+        # Create the symbolic link!
+        os.symlink(symlink_target, symlink_path)
+
+        # Create .version
+        self.write_version_file(os.path.dirname(symlink_path))
+
+    def check_symlink(self, module_dir):
+        """
+        Given an install command, if --symlink-tree is provided make
+        sure we don't already have this symlink in the tree.
+        """
+        # Get the symlink path - does it exist?
+        symlink_path = self.get_symlink_path(module_dir)
+        if os.path.exists(symlink_path) and not utils.confirm_action('%s already exists, are you sure you want to overwrite?' % symlink_path):
+            sys.exit(0)        
+
+
+    def _cleanup_symlink(self, module_dir):
+        """
+        Remove symlink directories if they exist
+        """
+        symlinked_module = self.get_symlink_path(module_dir)
+        if not symlinked_module:
+            return
+        if os.path.exists(symlinked_module) and os.path.islink(symlinked_module): 
+            os.unlink(symlinked_module)
+
+        # Clean up directories that become empty
+        parent_dir = os.path.dirname(symlinked_module)
+        if not os.path.exists(parent_dir):
+            return
+
+        # If the parent of the symlink only has zero files OR one file .version, cleanup
+        files = os.listdir(parent_dir)
+        if len(files) == 0 or (len(files) == 1 and files[0] == ".version"):
+            shutil.rmtree(parent_dir)
+         
     def docgen(self, module_name, out=None):
         """
         Render documentation for a module.
@@ -271,7 +348,24 @@ class ModuleBase(BaseClient):
         config = self._load_container(module_name.rsplit(":", 1)[0])
         return self.container.check(module_name, config)
 
-    def install(self, name, tag=None, **kwargs):
+    def write_version_file(self, version_dir):
+        """
+        Create the .version file, if there is a template for it.
+
+        Note that we don't actually change the content of the template:
+        it is copied as is.
+        """
+        version_template = 'default_version.' + self.module_extension
+        if not self.settings.default_version:
+            version_template = 'no_' + version_template
+        template_file = os.path.join(here, "templates", version_template)
+        if os.path.exists(template_file):
+            version_file = os.path.join(version_dir, ".version")
+            if not os.path.exists(version_file):
+                version_content = shpc.utils.read_file(template_file)
+                shpc.utils.write_file(version_file, version_content)
+
+    def install(self, name, tag=None, symlink=False, **kwargs):
         """
         Given a unique resource identifier, install a recipe.
 
@@ -299,14 +393,18 @@ class ModuleBase(BaseClient):
         module_dir = os.path.join(self.settings.module_base, uri, tag.name)
         subfolder = os.path.join(uri, tag.name)
         container_dir = self.container.container_dir(subfolder)
+
+        # Global override to arg
+        symlink = self.settings.symlink_tree is True or symlink
+
+        if symlink:
+            # Cut out early if symlink desired and already exists
+            self.check_symlink(module_dir)
         shpc.utils.mkdirp([module_dir, container_dir])
 
         # Add a .version file to indicate the level of versioning (not for tcl)
-        if self.module_extension != "tcl" and self.settings.default_version == True:
-            version_dir = os.path.join(self.settings.module_base, uri)
-            version_file = os.path.join(version_dir, ".version")
-            if not os.path.exists(version_file):
-                Path(version_file).touch()
+        version_dir = os.path.join(self.settings.module_base, uri)
+        self.write_version_file(version_dir)
 
         # For Singularity this is a path, podman is a uri. If None is returned
         # there was an error and we cleanup
@@ -356,4 +454,8 @@ class ModuleBase(BaseClient):
         if ":" not in name:
             name = "%s:%s" %(name, tag.name)
         logger.info("Module %s was created." % name)
+
+        if symlink:
+            self.create_symlink(module_dir)
+
         return container_path
