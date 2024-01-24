@@ -16,7 +16,7 @@ from shpc.logger import logger
 from shpc.main.settings import SettingsBase
 
 from .filesystem import Filesystem, FilesystemResult
-from .remote import GitHub, GitLab
+from .remote import GitHub, GitLab, Generic
 
 
 def update_container_module(module, from_path, existing_path):
@@ -97,12 +97,7 @@ class Registry:
                 return Registry(source)
             else:
                 response = requests.get(source)
-                if response.status_code != 200:
-                    logger.exit(
-                        "Remote %s is not deploying a Registry API and is not otherwise a known provider."
-                        % (source)
-                    )
-                else:
+                if response.status_code == 200:
                     return Registry(source)
         raise ValueError("No matching registry provider for %s" % source)
 
@@ -224,4 +219,4 @@ class Registry:
 
 
 # We only currently allow Filesystem registries to be used in settings
-PROVIDERS = [GitHub, Filesystem, GitLab]
+PROVIDERS = [GitHub, Filesystem, GitLab, Generic]
