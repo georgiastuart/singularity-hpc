@@ -109,7 +109,7 @@ class Client:
         """
         # Split name and tag
         tag = None
-        if ":" in name and not '/' in name.rsplit(":", 1):
+        if ":" in name and not '/' in name.rsplit(":", 1)[-1]:
             name, tag = name.rsplit(":", 1)
 
         # If the user provides a tag, set it
@@ -165,7 +165,7 @@ class Client:
         test_file = os.path.join(tmpdir, "test.sh")
 
         # If the module name has a tag, only test it
-        if ":" in module_name and not '/' in module_name.rsplit(":", 1):
+        if ":" in module_name and not '/' in module_name.rsplit(":", 1)[-1]:
             module_name = module_name.split(":", 1)[0]
             tags = [config.tag.name]
         else:
