@@ -95,10 +95,10 @@ class Registry:
         for Registry in PROVIDERS:
             if Registry.matches(source):
                 return Registry(source)
-            else:
-                response = requests.get(source)
-                if response.status_code == 200:
-                    return Registry(source)
+        else:
+            response = requests.get(source)
+            if response.status_code == 200:
+                return Generic(source)
         raise ValueError("No matching registry provider for %s" % source)
 
     def sync(
