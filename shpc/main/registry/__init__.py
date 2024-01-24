@@ -5,8 +5,10 @@ __license__ = "MPL 2.0"
 
 import os
 import shutil
+import sys
 
 import jsonschema
+import requests
 
 import shpc.main.schemas
 import shpc.utils
@@ -93,6 +95,15 @@ class Registry:
         for Registry in PROVIDERS:
             if Registry.matches(source):
                 return Registry(source)
+            else:
+                response = requests.get(source)
+                if response.status_code != 200:
+                    logger.exit(
+                        "Remote %s is not deploying a Registry API and is not otherwise a known provider."
+                        % (source)
+                    )
+                else:
+                    return Registry(source)
         raise ValueError("No matching registry provider for %s" % source)
 
     def sync(
