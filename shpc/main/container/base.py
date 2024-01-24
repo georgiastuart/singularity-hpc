@@ -89,8 +89,8 @@ class ContainerTechnology:
         Get the module directory the container references
         """
         # If the user provided a tag, tags are converted to folders
-        if ":" in name:
-            name = name.replace(":", os.sep)
+        if ":" in name and not '/' in name.rsplit(":", 1):
+            name = os.sep.join(name.rsplit(":", 1))
         return os.path.join(self.settings.module_base, name)
 
     def container_dir(self, name):
@@ -98,8 +98,8 @@ class ContainerTechnology:
         Use a custom container directory, otherwise default to module dir.
         """
         # If the user provided a tag, tags are converted to folders
-        if ":" in name:
-            name = name.replace(":", os.sep)
+        if ":" in name and not '/' in name.rsplit(":", 1):
+            name = os.sep.join(name.rsplit(":", 1))
 
         if not self.settings.container_base:
             return os.path.join(self.settings.module_base, name)
@@ -118,7 +118,7 @@ class ContainerTechnology:
         """
         If a user asks for a name without a tag, try to figure it out.
         """
-        if ":" in module_name:
+        if ":" in module_name and not '/' in module_name.rsplit(":", 1):
             return module_name
         tags = self.installed_tags(module_name)
         if not tags and allow_fail:
