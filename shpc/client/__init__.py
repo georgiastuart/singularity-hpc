@@ -255,8 +255,8 @@ def get_parser():
     )
     docgen.add_argument(
         "--template",
-        help="Jinja2 template for generating the documenentation module page files (often markdown)",
-        default="docs.md"
+        help="Jinja2 template for generating the documentation module page files (often markdown)",
+        default="docs.md",
     )
 
     # Pull a nontraditional container type (e.g., github release asset)
