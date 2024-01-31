@@ -7,7 +7,6 @@ import os
 import re
 import subprocess as sp
 import sys
-from urllib.parse import urlparse
 
 import requests
 
