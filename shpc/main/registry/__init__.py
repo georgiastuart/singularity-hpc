@@ -5,7 +5,6 @@ __license__ = "MPL 2.0"
 
 import os
 import shutil
-import sys
 
 import jsonschema
 import requests
