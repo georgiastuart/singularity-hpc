@@ -15,7 +15,7 @@ from shpc.logger import logger
 from shpc.main.settings import SettingsBase
 
 from .filesystem import Filesystem, FilesystemResult
-from .remote import GitHub, GitLab, Generic
+from .remote import Generic, GitHub, GitLab
 
 
 def update_container_module(module, from_path, existing_path):
@@ -218,4 +218,4 @@ class Registry:
 
 
 # We only currently allow Filesystem registries to be used in settings
-PROVIDERS = [GitHub, Filesystem, GitLab, Generic]
+PROVIDERS = [GitHub, Filesystem, Generic, GitLab]
