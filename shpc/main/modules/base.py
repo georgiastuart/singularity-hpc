@@ -286,7 +286,7 @@ class ModuleBase(BaseClient):
             return_modules=return_modules,
         )
 
-    def docgen(self, module_name, registry=None, out=None, branch="main"):
+    def docgen(self, module_name, registry=None, out=None, branch="main", template="docs.md"):
         """
         Render documentation for a module within a local registry.
         """
@@ -294,7 +294,7 @@ class ModuleBase(BaseClient):
 
         out = out or sys.stdout
         aliases = config.get_aliases()
-        template = self.template.load("docs.md")
+        template = self.template.load(template)
         registry = registry or defaults.github_url
         github_url = "%s/blob/%s/%s/container.yaml" % (registry, branch, config.name)
         registry_bare = urllib.parse.urlparse(registry).path.lstrip("/")

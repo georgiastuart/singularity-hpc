@@ -253,6 +253,11 @@ def get_parser():
         help="Branch that registry source files live (defaults to main)",
         default="main",
     )
+    docgen.add_argument(
+        "--template",
+        help="Jinja2 template for generating the documenentation module page files (often markdown)",
+        default="docs.md"
+    )
 
     # Pull a nontraditional container type (e.g., github release asset)
     pull = subparsers.add_parser(
