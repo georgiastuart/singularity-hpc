@@ -286,7 +286,9 @@ class ModuleBase(BaseClient):
             return_modules=return_modules,
         )
 
-    def docgen(self, module_name, registry=None, out=None, branch="main", template="docs.md"):
+    def docgen(
+        self, module_name, registry=None, out=None, branch="main", template="docs.md"
+    ):
         """
         Render documentation for a module within a local registry.
         """

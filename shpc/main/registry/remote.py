@@ -107,7 +107,7 @@ class VersionControl(Provider):
         Retrieve the web url, either pages or (eventually) custom.
         """
         if self.provider_name == "generic":
-            return  "%s/library.json" % self.source_url
+            return "%s/library.json" % self.source_url
 
         domain, namespace, repo = self.source_url.split("/")[2:]
         domain_parts = domain.split("@")[-1].split(".")
@@ -209,6 +209,7 @@ class GitHub(VersionControl):
 
 class GitLab(VersionControl):
     provider_name = "gitlab"
+
 
 class Generic(VersionControl):
     provider_name = "generic"
