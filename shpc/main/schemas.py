@@ -71,10 +71,14 @@ containerConfigProperties = {
     "docker_scripts": keyvals,
     "singularity_scripts": keyvals,
     "tags": keyvals,
-    "filter": {
+    "filter": {"oneOf": [{
         "type": "array",
         "items": {"type": "string"},
     },
+    {
+      "and": {"type": "array", "items": {"type": "string"}},
+      "or": {"type": "array", "items": {"type": "string"}},
+    }]},
     "env": keyvals,
     "features": features,
     "overrides": keyvals,
