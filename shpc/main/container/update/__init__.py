@@ -5,13 +5,13 @@ __license__ = "MPL 2.0"
 from shpc.logger import logger
 
 from .diff import print_diff
-from .docker import DockerImage
+from .docker import DockerImage, DockerHubImage
 from .versions import filter_versions
 
 assert print_diff
 
 
-def update_config_tags(config, filters=None):
+def update_config_tags(config, filters=None, purge=None, max_length=None):
     """
     Given a container config, update the latest tags
     """
@@ -20,13 +20,16 @@ def update_config_tags(config, filters=None):
         uri = config.docker or config.oras
 
         logger.info("Looking for updated digests for %s" % uri)
-        latest_tags = get_latest_tags(uri)
+        latest_tags = get_latest_tags(uri, config)
 
         # Notice this API call truncates at 50
-        versions = filter_versions(latest_tags, filters=filters or config.filter)
+        versions = filter_versions(latest_tags, filters=filters or config.filter, max_length=max_length)
 
         # Get list of current tags, and update with new versions
-        current_tags = dict(config.get("tags", {}))
+        if purge:
+            current_tags = dict({})
+        else:
+            current_tags = dict(config.get("tags", {}))
 
         # Now do the same practice as before - try to derive what is latest
         sorted_tags = filter_versions(
@@ -59,7 +62,7 @@ def update_config_tags(config, filters=None):
         tags = list(current_tags.keys())
         for tag in tags:
             try:
-                digest = get_container_tag(uri, tag)
+                digest = get_container_tag(uri, config, tag)
             except Exception:
                 digest = {tag: current_tags[tag]}
 
@@ -83,10 +86,17 @@ def update_config_tags(config, filters=None):
 
         # Update latest and the rest
         if sorted_tags:
-            config.set(
-                "latest",
-                {versioned_tags[-1].vstring: current_tags[versioned_tags[-1].vstring]},
-            )
+            try:
+                config.set(
+                    "latest",
+                    {"latest": current_tags["latest"]},
+                )
+            except KeyError:
+                latest_index = -1
+                config.set(
+                    "latest",
+                    {versioned_tags[latest_index].vstring: current_tags[versioned_tags[latest_index].vstring]},
+                )
             config.set("tags", {x: v for x, v in current_tags.items()})
 
     return config
@@ -108,12 +118,24 @@ def get_earliest_tag(sorted_tags):
     return earliest_tag
 
 
-def get_container_tag(container_name, tag=None):
+def _get_image_type(container_name, config):
+    container_prefix = container_name.split("/")[0]
+    image = None
+
+    if config.docker: 
+        if container_prefix == "docker.io" or "." not in container_prefix:
+            image = DockerHubImage(container_name)
+
+    return image if image else DockerImage(container_name)
+
+
+def get_container_tag(container_name, config, tag=None):
     """
     Given a container name, get the latest list of tags and digests.
     This can be extended when we have a container updater.
     """
-    image = DockerImage(container_name)
+
+    image = _get_image_type(container_name, config)
 
     # Get a specific tag
     tag = tag or "latest"
@@ -121,9 +143,10 @@ def get_container_tag(container_name, tag=None):
     return {tag: digest}
 
 
-def get_latest_tags(container_name, tag=None):
+def get_latest_tags(container_name, config, tag=None):
     """
     Given a container name, get the latest tags.
     """
-    image = DockerImage(container_name)
+    
+    image = _get_image_type(container_name, config)
     return image.tags()

@@ -86,3 +86,47 @@ class DockerImage:
     def config(self):
         url = "%s/config/%s" % (self.apiroot, self.container_name)
         return self.get_request(url).json()
+
+class DockerHubImage(DockerImage):
+
+    """
+    A thin client for getting metadata about an image on DockerHub.
+    """
+
+    def __init__(self, container_name):
+        super().__init__(container_name)
+
+        container_name_array = container_name.lstrip("docker.io/").split("/")
+        if len(container_name_array) == 1:
+            self.container_name = "library/%s" % container_name_array[0]
+        elif len(container_name_array) == 2:
+            self.container_name = "%s/%s" % (
+                container_name_array[0],
+                container_name_array[1],
+            )
+        self.apiroot = "https://hub.docker.com/v2/repositories"
+
+        self.tag_response = None
+
+    def _query_tag_api(self):
+        url = "%s/%s/tags?page_size=%s" % (self.apiroot, self.container_name, 100)
+        response = self.get_request(url)
+        self.tag_response = response.json()["results"]
+
+    def tags(self, force_refresh=False):
+        if self.tag_response is None or force_refresh:
+            self._query_tag_api()
+        tags = [x["name"] for x in self.tag_response]
+        # Don't include tags for vex or sbom
+        tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
+        return tags
+
+    def digest(self, tag, force_refresh=False):
+        if self.tag_response is None or force_refresh:
+            self._query_tag_api()
+        for tag_info in self.tag_response:
+            if tag_info["name"] == tag:
+                return tag_info["digest"]
+        # logger.exit(
+        #     f"The tag {tag} you provided is not known. Check that it and the container both exist."
+        # )

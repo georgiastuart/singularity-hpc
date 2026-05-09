@@ -34,14 +34,31 @@ def filter_versions(tags, filters=None, max_length=5):
     tags (list)      : a listing of string tags
     filters (list)   : an optional list of string filters
     max_length (int) : the max number to return (latest)
-    """
-    filters = filters or []
+    """    
+
+    filtered_tags = [x for x in tags]
+    and_filters = filters or []
+    or_filters = []
+
+    try:
+        and_filters = filters["and"]
+    except (KeyError, TypeError):
+        pass
+
+    try:
+        or_filters = filters["or"]
+    except (KeyError, TypeError):
+        pass
+        
     if tags and filters:
-        for pattern in filters:
-            tags = [x for x in tags if re.search(pattern, x)]
+        for pattern in and_filters:
+            filtered_tags = [x for x in filtered_tags if re.search(pattern, x)]
+        
+        for pattern in or_filters:
+            filtered_tags.extend([x for x in tags if re.search(pattern, x)])
 
     # Convert to TaggedLooseVersion
-    versions = [TaggedLooseVersion(x) for x in tags]
+    versions = [TaggedLooseVersion(x) for x in filtered_tags]
 
     # The sorting will tag a subset with "remove" that aren't sortable
     # This has latest at the top
