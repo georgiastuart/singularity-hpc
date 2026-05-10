@@ -44,35 +44,12 @@ class DockerImage:
         """
         Get image tags.
         """
-        # Quay does not follow the distribution spec, crane only returns 50
-        if "quay.io" in self.container_name:
-            return self.tags_quay()
 
         url = "%s/ls/%s" % (self.apiroot, self.container_name)
         response = self.get_request(url)
         tags = [x.strip() for x in response.text.split("\n") if x.strip()]
         # Don't include tags for vex or sbom
         tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
-        return tags
-
-    def tags_quay(self):
-        """
-        Custom endpoint to handle quay and pagination.
-        """
-        repository = self.container_name.replace("quay.io/", "", 1)
-        page = 1
-        tags = []
-        has_more = True
-        while has_more:
-            url = f"https://quay.io/api/v1/repository/{repository}/tag/?limit=100&page={page}"
-            response = self.get_request(url).json()
-            new_tags = [
-                x.get("name") for x in response.get("tags", {}) if x.get("name")
-            ]
-            new_tags = [x for x in new_tags if not re.search("[.](sbom|vex)$", x)]
-            tags += new_tags
-            has_more = response.get("has_additional") is True
-            page += 1
         return tags
 
     def manifest(self, tag):
@@ -105,8 +82,47 @@ class QuayDockerImage(DockerImage):
 
     def __init__(self, container_name):
         super().__init__(container_name)
-        self.apiroot = "https://quay.io/api/v1/repository/%s/tag" % (
-            self.container_name.lstrip("quay.io/")
+        self.apiroot = "https://quay.io/api/v1/repository/%s/tag"
+        self.tag_response = None
+
+    def _query_tag_api(self):
+        """
+        Custom endpoint to handle quay and pagination.
+        """
+        repository = self.container_name.replace("quay.io/", "", 1)
+        page = 1
+        tags = []
+        has_more = True
+        while has_more:
+            url = f"https://quay.io/api/v1/repository/{repository}/tag/?limit=100&page={page}"
+            response = self.get_request(url).json()
+            new_tags = [
+                x for x in response.get("tags", {}) if x.get("name")
+            ]
+            tags.extend(new_tags)
+            has_more = response.get("has_additional") is True
+            page += 1
+        return tags
+    
+    def tags(self, force_refresh=False):
+        if self.tag_response is None or force_refresh:
+            self.tag_response = self._query_tag_api()
+        tags = [x["name"] for x in self.tag_response]
+        # Don't include tags for vex or sbom
+        tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
+        return tags
+
+    def digest(self, tag, force_refresh=False):
+        if self.tag_response is not None:
+            for tag_info in self.tag_response:
+                if tag_info["name"] == tag:
+                    return tag_info["manifest_digest"]
+        tag_response = self._query_tag_api(tag=tag)
+        for tag_info in tag_response:
+            if tag_info["name"] == tag:
+                return tag_info["manifest_digest"]
+        logger.exit(
+            f"The tag {tag} you provided is not known. Check that it and the container both exist."
         )
 class DockerHubImage(DockerImage):
 
