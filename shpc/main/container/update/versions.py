@@ -34,7 +34,7 @@ def filter_versions(tags, filters=None, max_length=5):
     tags (list)      : a listing of string tags
     filters (list)   : an optional list of string filters
     max_length (int) : the max number to return (latest)
-    """    
+    """
 
     filtered_tags = [x for x in tags]
     and_filters = filters or []
@@ -49,11 +49,11 @@ def filter_versions(tags, filters=None, max_length=5):
         or_filters = filters["or"]
     except (KeyError, TypeError):
         pass
-        
+
     if tags and filters:
         for pattern in and_filters:
             filtered_tags = [x for x in filtered_tags if re.search(pattern, x)]
-        
+
         for pattern in or_filters:
             filtered_tags.extend([x for x in tags if re.search(pattern, x)])
 

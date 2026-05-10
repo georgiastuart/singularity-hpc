@@ -184,7 +184,9 @@ class ContainerConfig:
         if self.docker or self.oras:
             previous_tags = self.get("tags", {})
             previous_latest = self.get("latest", {})
-            updated = update.update_config_tags(self, filters=filters, purge=purge, max_length=max_tags)
+            updated = update.update_config_tags(
+                self, filters=filters, purge=purge, max_length=max_tags
+            )
 
             # print the container name and latest tag:
             print(add_prefix(underline(self.docker or self.oras)))

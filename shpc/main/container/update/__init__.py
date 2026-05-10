@@ -5,7 +5,7 @@ __license__ = "MPL 2.0"
 from shpc.logger import logger
 
 from .diff import print_diff
-from .docker import DockerImage, DockerHubImage, NGCImage, QuayDockerImage
+from .docker import DockerHubImage, DockerImage, NGCImage, QuayDockerImage
 from .versions import filter_versions
 
 assert print_diff
@@ -25,7 +25,9 @@ def update_config_tags(config, filters=None, purge=None, max_length=None):
         latest_tags = get_latest_tags(uri, config, image=image)
 
         # Notice this API call truncates at 50
-        versions = filter_versions(latest_tags, filters=filters or config.filter, max_length=max_length)
+        versions = filter_versions(
+            latest_tags, filters=filters or config.filter, max_length=max_length
+        )
 
         # Get list of current tags, and update with new versions
         if purge:
@@ -115,7 +117,7 @@ def get_earliest_tag(sorted_tags):
 
 def _get_image_type(container_name, config):
     container_prefix = container_name.split("/")[0]
-    
+
     if container_prefix == "docker.io" or "." not in container_prefix:
         return DockerHubImage(container_name)
     elif container_prefix == "quay.io":

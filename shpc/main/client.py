@@ -129,7 +129,9 @@ class Client:
 
         for module_name in modules:
             config = self._load_container(module_name)
-            config.update(dryrun=dryrun, filters=filters, purge=purge, max_tags=max_tags)
+            config.update(
+                dryrun=dryrun, filters=filters, purge=purge, max_tags=max_tags
+            )
 
     def test(
         self,

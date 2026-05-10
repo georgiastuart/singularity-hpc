@@ -32,15 +32,20 @@ class DockerImage:
         # Try to retry once if rate limited
         if response.status_code == 429:
             retry_seconds = response.headers.get("Retry-After", "unknown")
-            logger.warning("Rate limit hit for %s, retrying after %s seconds" % (url, retry_seconds))
+            logger.warning(
+                "Rate limit hit for %s, retrying after %s seconds"
+                % (url, retry_seconds)
+            )
             time.sleep(int(retry_seconds) + 1)
             response = requests.get(url)
 
         if response.status_code == 404:
             raise ValueError(f"Request to {url} returned 404.")
-        
+
         if response.status_code != 200:
-            logger.exit("Issue with request %s. Status code: %d" % (url, response.status_code))
+            logger.exit(
+                "Issue with request %s. Status code: %d" % (url, response.status_code)
+            )
 
         return response
 
@@ -78,6 +83,7 @@ class DockerImage:
         url = "%s/config/%s" % (self.apiroot, self.container_name)
         return self.get_request(url).json()
 
+
 class QuayDockerImage(DockerImage):
 
     """
@@ -99,7 +105,12 @@ class QuayDockerImage(DockerImage):
         has_more = True
         specific_tag = "&specificTag=%s" % tag if tag else ""
         while has_more:
-            url = "%s/%s/tag/?limit=100&page=%s%s" % (self.apiroot, repository, page, specific_tag)
+            url = "%s/%s/tag/?limit=100&page=%s%s" % (
+                self.apiroot,
+                repository,
+                page,
+                specific_tag,
+            )
             response = self.get_request(url).json()
             tags = response.get("tags", {})
 
@@ -108,14 +119,12 @@ class QuayDockerImage(DockerImage):
                     f"The tag {tag} you provided is not known. Check that it and the container both exist."
                 )
                 raise ValueError
-            new_tags = [
-                x for x in tags if x.get("name")
-            ]
+            new_tags = [x for x in tags if x.get("name")]
             tags.extend(new_tags)
             has_more = response.get("has_additional") is True
             page += 1
         return tags
-    
+
     def tags(self):
         if self.tag_response is None:
             self.tag_response = self._query_tag_api()
@@ -136,6 +145,8 @@ class QuayDockerImage(DockerImage):
                     return tag_info.get("manifest_digest", "unknown")
         except ValueError:
             return "unknown"
+
+
 class DockerHubImage(DockerImage):
 
     """
@@ -203,6 +214,7 @@ class DockerHubImage(DockerImage):
             f"The tag {tag} you provided is not known. Check that it and the container both exist."
         )
 
+
 class NGCImage(DockerImage):
 
     """
@@ -215,17 +227,18 @@ class NGCImage(DockerImage):
         self.container_name = container_name.replace("nvcr.io/", "", 1)
 
         from ngcsdk import Client
+
         self.client = Client()
         self.client.configure(
-            os.environ.get("SHPC_NGC_API_KEY"), 
+            os.environ.get("SHPC_NGC_API_KEY"),
         )
 
         self.tag_response = None
-    
+
     def _query_tag_api(self):
         image_list = self.client.registry.image.list(self.container_name)
         return [image.toDict() for image in image_list]
-    
+
     def tags(self):
         if self.tag_response is None:
             self.tag_response = self._query_tag_api()

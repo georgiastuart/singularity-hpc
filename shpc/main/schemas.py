@@ -59,11 +59,11 @@ aliases_list = {
 }
 
 filter_and_or = {
-  "type": "object",
-  "properties": {
-    "and": {"type": "array", "items": {"type": "string"}},
-    "or": {"type": "array", "items": {"type": "string"}}
-  }
+    "type": "object",
+    "properties": {
+        "and": {"type": "array", "items": {"type": "string"}},
+        "or": {"type": "array", "items": {"type": "string"}},
+    },
 }
 
 containerConfigProperties = {
@@ -80,10 +80,8 @@ containerConfigProperties = {
     "singularity_scripts": keyvals,
     "tags": keyvals,
     "filter": {
-      "oneOf": [
-        {"type": "array", "items": {"type": "string"}},
-        filter_and_or
-      ]},
+        "oneOf": [{"type": "array", "items": {"type": "string"}}, filter_and_or]
+    },
     "env": keyvals,
     "features": features,
     "overrides": keyvals,
