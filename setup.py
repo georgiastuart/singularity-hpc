@@ -69,7 +69,7 @@ if __name__ == "__main__":
     INSTALL_REQUIRES = get_reqs(lookup)
     TESTS_REQUIRES = get_reqs(lookup, "TESTS_REQUIRES")
     INSTALL_REQUIRES_ALL = get_reqs(lookup, "INSTALL_REQUIRES_ALL")
-    INSTALL_REQUIRES_NGC = get_reqs(lookup, "NGC_REQUIRES")
+    NGC_REQUIRES = get_reqs(lookup, "NGC_REQUIRES")
 
     setup(
         name=NAME,
@@ -90,7 +90,7 @@ if __name__ == "__main__":
         install_requires=INSTALL_REQUIRES,
         tests_require=TESTS_REQUIRES,
         extras_require={
-            "ngc": [INSTALL_REQUIRES_NGC],
+            "ngc": [NGC_REQUIRES],
             "all": [INSTALL_REQUIRES_ALL],
         },
         classifiers=[

@@ -16,10 +16,6 @@ maintainer: 'Dinosaur'
 # env:
 #  breakfast: pancakes
 
-# custom recipe update scripts
-# update:
-#  dockerhub:
-
 # A description to describe your container
 description: A custom container to do X.
 latest:
