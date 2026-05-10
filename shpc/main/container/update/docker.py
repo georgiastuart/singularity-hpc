@@ -133,8 +133,7 @@ class DockerHubImage(DockerImage):
 
     def __init__(self, container_name):
         super().__init__(container_name)
-
-        container_name_array = container_name.lstrip("docker.io/").split("/")
+        container_name_array = container_name.replace("docker.io/", "", 1).split("/")
         if len(container_name_array) == 1:
             self.container_name = "library/%s" % container_name_array[0]
         elif len(container_name_array) == 2:

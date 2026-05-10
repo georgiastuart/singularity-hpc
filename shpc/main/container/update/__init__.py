@@ -88,17 +88,10 @@ def update_config_tags(config, filters=None, purge=None, max_length=None):
 
         # Update latest and the rest
         if sorted_tags:
-            try:
-                config.set(
-                    "latest",
-                    {"latest": current_tags["latest"]},
-                )
-            except KeyError:
-                latest_index = -1
-                config.set(
-                    "latest",
-                    {versioned_tags[latest_index].vstring: current_tags[versioned_tags[latest_index].vstring]},
-                )
+            config.set(
+                "latest",
+                {versioned_tags[-1].vstring: current_tags[versioned_tags[-1].vstring]},
+            )
             config.set("tags", {x: v for x, v in current_tags.items()})
 
     return config
