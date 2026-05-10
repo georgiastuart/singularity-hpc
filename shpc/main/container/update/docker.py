@@ -38,6 +38,7 @@ class DockerImage:
 
         if response.status_code == 404:
             raise ValueError(f"Request to {url} returned 404.")
+        
         if response.status_code != 200:
             logger.exit("Issue with request %s. Status code: %d" % (url, response.status_code))
 
@@ -85,10 +86,10 @@ class QuayDockerImage(DockerImage):
 
     def __init__(self, container_name):
         super().__init__(container_name)
-        self.apiroot = "https://quay.io/api/v1/repository/%s/tag"
+        self.apiroot = "https://quay.io/api/v1/repository"
         self.tag_response = None
 
-    def _query_tag_api(self):
+    def _query_tag_api(self, tag=None):
         """
         Custom endpoint to handle quay and pagination.
         """
@@ -96,11 +97,19 @@ class QuayDockerImage(DockerImage):
         page = 1
         tags = []
         has_more = True
+        specific_tag = "&specificTag=%s" % tag if tag else ""
         while has_more:
-            url = f"https://quay.io/api/v1/repository/{repository}/tag/?limit=100&page={page}"
+            url = "%s/%s/tag/?limit=100&page=%s%s" % (self.apiroot, repository, page, specific_tag)
             response = self.get_request(url).json()
+            tags = response.get("tags", {})
+
+            if len(tags) == 0:
+                logger.error(
+                    f"The tag {tag} you provided is not known. Check that it and the container both exist."
+                )
+                raise ValueError
             new_tags = [
-                x for x in response.get("tags", {}) if x.get("name")
+                x for x in tags if x.get("name")
             ]
             tags.extend(new_tags)
             has_more = response.get("has_additional") is True
@@ -118,18 +127,15 @@ class QuayDockerImage(DockerImage):
     def digest(self, tag):
         if self.tag_response is not None:
             for tag_info in self.tag_response:
-                if tag_info["name"] == tag:
-                    return tag_info["manifest_digest"]
+                if tag_info.get("name", "") == tag:
+                    return tag_info.get("manifest_digest", "unknown")
         try:
             tag_response = self._query_tag_api(tag=tag)
             for tag_info in tag_response:
-                if tag_info["name"] == tag:
-                    return tag_info["manifest_digest"]
+                if tag_info.get("name", "") == tag:
+                    return tag_info.get("manifest_digest", "unknown")
         except ValueError:
-            logger.warning(
-                f"The tag {tag} you provided is not known. Check that it and the container both exist."
-            )
-            return None
+            return "unknown"
 class DockerHubImage(DockerImage):
 
     """
@@ -175,7 +181,6 @@ class DockerHubImage(DockerImage):
 
     def digest(self, tag):
         tag_dict = None
-        print(tag)
         if self.tag_response is not None:
             for tag_info in self.tag_response:
                 if tag_info["name"] == tag:
@@ -187,7 +192,7 @@ class DockerHubImage(DockerImage):
                 if tag_info["name"] == tag:
                     tag_dict = tag_info
                     break
-                
+
         if tag_dict:
             digest = tag_dict.get("digest", None)
             if digest:

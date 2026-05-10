@@ -115,17 +115,15 @@ def get_earliest_tag(sorted_tags):
 
 def _get_image_type(container_name, config):
     container_prefix = container_name.split("/")[0]
-    image = None
-
-    if config.docker: 
-        if container_prefix == "docker.io" or "." not in container_prefix:
-            image = DockerHubImage(container_name)
-        elif container_prefix == "quay.io":
-            image = QuayDockerImage(container_name)
-        elif container_prefix == "nvcr.io":
-            image = NGCImage(container_name)
-
-    return image if image else DockerImage(container_name)
+    
+    if container_prefix == "docker.io" or "." not in container_prefix:
+        return DockerHubImage(container_name)
+    elif container_prefix == "quay.io":
+        return QuayDockerImage(container_name)
+    elif container_prefix == "nvcr.io":
+        return NGCImage(container_name)
+    else:
+        return DockerImage(container_name)
 
 
 def get_container_tag(container_name, config, tag=None, image=None):
