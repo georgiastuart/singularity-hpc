@@ -22,6 +22,7 @@ class DockerImage:
 
         # might not last forever, but we can use it for now
         self.apiroot = "https://crane.ggcr.dev"
+        self.tag_response = None
 
     def get_request(self, url):
         """
@@ -49,16 +50,40 @@ class DockerImage:
 
         return response
 
+    # This should always return a dicts with tag name keys and digest values.
+    # For some registries, the digest query is separate.
+    # Return "unknown" in this case.
+    def _query_tag_api(self, tag=None):
+        tag_string = f":{tag}" if tag else ""
+        operation = "digest" if tag else "ls"
+
+        url = "%s/%s/%s%s" % (self.apiroot, operation, self.container_name, tag_string)
+        response = self.get_request(url)
+
+        if "could not parse reference" in response:
+            logger.exit("Issue getting digest: %s" % response)
+        if "unsupported status" in response:
+            logger.exit("Issue getting digest: %s" % response)
+        if "MANIFEST_UNKNOWN" in response.text:
+            raise ValueError(
+                f"The image {'%s%s' % (self.container_name, tag_string)} you provided is not known. Check that it and the container both exist."
+            )
+
+        if tag is not None:
+            return {tag: response.text}
+        return {x.strip(): "unknown" for x in response.text.split("\n") if x.strip()}
+
     def tags(self):
         """
         Get image tags.
         """
+        if self.tag_response is None:
+            self.tag_response = self._query_tag_api()
 
-        url = "%s/ls/%s" % (self.apiroot, self.container_name)
-        response = self.get_request(url)
-        tags = [x.strip() for x in response.text.split("\n") if x.strip()]
         # Don't include tags for vex or sbom
-        tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
+        tags = [
+            x for x in self.tag_response.keys() if not re.search("[.](sbom|vex)$", x)
+        ]
         return tags
 
     def manifest(self, tag):
@@ -67,17 +92,12 @@ class DockerImage:
         return response.json()
 
     def digest(self, tag):
-        url = "%s/digest/%s:%s" % (self.apiroot, self.container_name, tag)
-        response = self.get_request(url)
-        if "could not parse reference" in response:
-            logger.exit("Issue getting digest: %s" % response)
-        if "unsupported status" in response:
-            logger.exit("Issue getting digest: %s" % response)
-        if "MANIFEST_UNKNOWN" in response.text:
-            logger.exit(
-                f"The tag {tag} you provided is not known. Check that it and the container both exist."
-            )
-        return response.text
+        if (
+            self.tag_response is None
+            or self.tag_response.get(tag, "unknown") == "unknown"
+        ):
+            self.tag_response[tag] = self._query_tag_api(tag=tag)[tag]
+        return self.tag_response.get(tag, "unknown")
 
     def config(self):
         url = "%s/config/%s" % (self.apiroot, self.container_name)
@@ -93,7 +113,6 @@ class QuayDockerImage(DockerImage):
     def __init__(self, container_name):
         super().__init__(container_name)
         self.apiroot = "https://quay.io/api/v1/repository"
-        self.tag_response = None
 
     def _query_tag_api(self, tag=None):
         """
@@ -115,36 +134,29 @@ class QuayDockerImage(DockerImage):
             tags = response.get("tags", {})
 
             if len(tags) == 0:
-                logger.error(
-                    f"The tag {tag} you provided is not known. Check that it and the container both exist."
+                raise ValueError(
+                    f"The tag {tag} you provided is not known. "
+                    f"Check that it and the container both exist."
                 )
-                raise ValueError
             new_tags = [x for x in tags if x.get("name")]
             tags.extend(new_tags)
             has_more = response.get("has_additional") is True
             page += 1
-        return tags
+        return {
+            tag["name"]: tag.get("manifest_digest", "unknown")
+            for tag in tags
+            if tag.get("name") is not None
+        }
 
-    def tags(self):
-        if self.tag_response is None:
-            self.tag_response = self._query_tag_api()
-        tags = [x["name"] for x in self.tag_response]
-        # Don't include tags for vex or sbom
-        tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
-        return tags
+    def manifest(self, tag):
+        raise NotImplementedError(
+            "Manifest retrieval for QuayDockerImage has not been implemented."
+        )
 
-    def digest(self, tag):
-        if self.tag_response is not None:
-            for tag_info in self.tag_response:
-                if tag_info.get("name", "") == tag:
-                    return tag_info.get("manifest_digest", "unknown")
-        try:
-            tag_response = self._query_tag_api(tag=tag)
-            for tag_info in tag_response:
-                if tag_info.get("name", "") == tag:
-                    return tag_info.get("manifest_digest", "unknown")
-        except ValueError:
-            return "unknown"
+    def config(self):
+        raise NotImplementedError(
+            "Config retrieval for QuayDockerImage has not been implemented."
+        )
 
 
 class DockerHubImage(DockerImage):
@@ -165,8 +177,6 @@ class DockerHubImage(DockerImage):
             )
         self.apiroot = "https://hub.docker.com/v2/repositories"
 
-        self.tag_response = None
-
     def _query_tag_api(self, tag=None):
         tag_responses = []
         if tag is None:
@@ -180,38 +190,23 @@ class DockerHubImage(DockerImage):
             url = response.json().get("next")
             if url is None:
                 break
-        return tag_responses
 
-    def tags(self):
-        if self.tag_response is None:
-            self.tag_response = self._query_tag_api()
-        tags = [x["name"] for x in self.tag_response]
-        # Don't include tags for vex or sbom
-        tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
-        return tags
+        return {
+            tag["name"]: tag.get(
+                "digest", tag.get("images", [{}])[0].get("digest", "unknown")
+            )
+            for tag in tag_responses
+            if tag.get("name") is not None
+        }
 
-    def digest(self, tag):
-        tag_dict = None
-        if self.tag_response is not None:
-            for tag_info in self.tag_response:
-                if tag_info["name"] == tag:
-                    tag_dict = tag_info
-                    break
-        else:
-            tag_response = self._query_tag_api(tag=tag)
-            for tag_info in tag_response:
-                if tag_info["name"] == tag:
-                    tag_dict = tag_info
-                    break
+    def manifest(self, tag):
+        raise NotImplementedError(
+            "Manifest retrieval for DockerHubImage has not been implemented."
+        )
 
-        if tag_dict:
-            digest = tag_dict.get("digest", None)
-            if digest:
-                return digest
-            else:
-                return tag_dict.get("images", [{}])[0].get("digest", "unknown")
-        logger.exit(
-            f"The tag {tag} you provided is not known. Check that it and the container both exist."
+    def config(self):
+        raise NotImplementedError(
+            "Config retrieval for DockerHubImage has not been implemented."
         )
 
 
@@ -233,29 +228,16 @@ class NGCImage(DockerImage):
             os.environ.get("SHPC_NGC_API_KEY"),
         )
 
-        self.tag_response = None
-
     def _query_tag_api(self):
         image_list = self.client.registry.image.list(self.container_name)
-        return [image.toDict() for image in image_list]
+        return {image.tag: image.digest for image in image_list}
 
-    def tags(self):
-        if self.tag_response is None:
-            self.tag_response = self._query_tag_api()
-        tags = [x["tag"] for x in self.tag_response]
-        # Don't include tags for vex or sbom
-        tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
-        return tags
+    def manifest(self, tag):
+        raise NotImplementedError(
+            "Manifest retrieval for NGCImage has not been implemented."
+        )
 
-    def digest(self, tag):
-        if self.tag_response is not None:
-            for tag_info in self.tag_response:
-                if tag_info["tag"] == tag:
-                    return tag_info["digest"]
-        tag_response = self._query_tag_api(tag=tag)
-        for tag_info in tag_response:
-            if tag_info["tag"] == tag:
-                return tag_info["digest"]
-        logger.exit(
-            f"The tag {tag} you provided is not known. Check that it and the container both exist."
+    def config(self):
+        raise NotImplementedError(
+            "Config retrieval for NGCImage has not been implemented."
         )
