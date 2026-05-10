@@ -1443,6 +1443,21 @@ Let us know if there are other features you'd like for update! For specific reci
 it could be that a different method of choosing or sorting tags (beyond the defaults mentioned above
 and filter) is needed.
 
+
+Updating from Nvidia GPU Cloud (NGC)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As of version 0.1.34, there is support to update from the NGC API, which provides the
+most accurate information for `nvcr.io` containers. To use NGC, install SHPC with
+the `ngc` or `all` option, and export the environment variable `SHPC_NGC_API_KEY`
+prior to running `shpc update`. See the `NGC portal https://org.ngc.nvidia.com/account/api-key`_
+for how to get an NGC API key.
+
+.. code-block:: console
+
+    $ export SHPC_NGC_API_KEY="your_ngc_api_key_here"
+    $ shpc update nvcr.io/nvidia/pytorch
+
 .. _getting_started-commands-sync-registry:
 
 
