@@ -3,6 +3,7 @@ __copyright__ = "Copyright 2021-2025, Vanessa Sochat"
 __license__ = "MPL 2.0"
 
 import re
+import time
 
 import requests
 
@@ -26,8 +27,17 @@ class DockerImage:
         Perform a get request, expecting status code 200.
         """
         response = requests.get(url)
+
+        # Try to retry once if rate limited
+        if response.status_code == 429:
+            retry_seconds = response.headers.get("Retry-After", "unknown")
+            logger.warning("Rate limit hit for %s, retrying after %s seconds" % (url, retry_seconds))
+            time.sleep(int(retry_seconds))
+            response = requests.get(url)
+
         if response.status_code != 200:
             logger.exit("Issue with request %s" % url)
+
         return response
 
     def tags(self):
@@ -87,6 +97,17 @@ class DockerImage:
         url = "%s/config/%s" % (self.apiroot, self.container_name)
         return self.get_request(url).json()
 
+class QuayDockerImage(DockerImage):
+
+    """
+    A thin client for getting metadata about an image on Quay.
+    """
+
+    def __init__(self, container_name):
+        super().__init__(container_name)
+        self.apiroot = "https://quay.io/api/v1/repository/%s/tag" % (
+            self.container_name.lstrip("quay.io/")
+        )
 class DockerHubImage(DockerImage):
 
     """
@@ -108,25 +129,38 @@ class DockerHubImage(DockerImage):
 
         self.tag_response = None
 
-    def _query_tag_api(self):
-        url = "%s/%s/tags?page_size=%s" % (self.apiroot, self.container_name, 100)
-        response = self.get_request(url)
-        self.tag_response = response.json()["results"]
+    def _query_tag_api(self, tag=None):
+        tag_responses = []
+        if tag is None:
+            url = "%s/%s/tags?page_size=%s" % (self.apiroot, self.container_name, 100)
+        else:
+            url = "%s/%s/tags/%s" % (self.apiroot, self.container_name, tag)
+
+        while True:
+            response = self.get_request(url)
+            tag_responses.extend(response.json()["results"])
+            url = response.json().get("next")
+            if url is None:
+                break
+        return tag_responses
 
     def tags(self, force_refresh=False):
         if self.tag_response is None or force_refresh:
-            self._query_tag_api()
+            self.tag_response = self._query_tag_api()
         tags = [x["name"] for x in self.tag_response]
         # Don't include tags for vex or sbom
         tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
         return tags
 
     def digest(self, tag, force_refresh=False):
-        if self.tag_response is None or force_refresh:
-            self._query_tag_api()
-        for tag_info in self.tag_response:
+        if self.tag_response is not None:
+            for tag_info in self.tag_response:
+                if tag_info["name"] == tag:
+                    return tag_info["digest"]
+        tag_response = self._query_tag_api(tag=tag)
+        for tag_info in tag_response:
             if tag_info["name"] == tag:
                 return tag_info["digest"]
-        # logger.exit(
-        #     f"The tag {tag} you provided is not known. Check that it and the container both exist."
-        # )
+        logger.exit(
+            f"The tag {tag} you provided is not known. Check that it and the container both exist."
+        )

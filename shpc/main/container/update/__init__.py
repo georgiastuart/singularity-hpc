@@ -20,7 +20,9 @@ def update_config_tags(config, filters=None, purge=None, max_length=None):
         uri = config.docker or config.oras
 
         logger.info("Looking for updated digests for %s" % uri)
-        latest_tags = get_latest_tags(uri, config)
+
+        image = _get_image_type(uri, config)
+        latest_tags = get_latest_tags(uri, config, image=image)
 
         # Notice this API call truncates at 50
         versions = filter_versions(latest_tags, filters=filters or config.filter, max_length=max_length)
@@ -62,7 +64,7 @@ def update_config_tags(config, filters=None, purge=None, max_length=None):
         tags = list(current_tags.keys())
         for tag in tags:
             try:
-                digest = get_container_tag(uri, config, tag)
+                digest = get_container_tag(uri, config, tag, image=image)
             except Exception:
                 digest = {tag: current_tags[tag]}
 
@@ -129,13 +131,14 @@ def _get_image_type(container_name, config):
     return image if image else DockerImage(container_name)
 
 
-def get_container_tag(container_name, config, tag=None):
+def get_container_tag(container_name, config, tag=None, image=None):
     """
     Given a container name, get the latest list of tags and digests.
     This can be extended when we have a container updater.
     """
 
-    image = _get_image_type(container_name, config)
+    if image is None:
+        image = _get_image_type(container_name, config)
 
     # Get a specific tag
     tag = tag or "latest"
@@ -143,10 +146,11 @@ def get_container_tag(container_name, config, tag=None):
     return {tag: digest}
 
 
-def get_latest_tags(container_name, config, tag=None):
+def get_latest_tags(container_name, config, tag=None, image=None):
     """
     Given a container name, get the latest tags.
     """
-    
-    image = _get_image_type(container_name, config)
+
+    if image is None:
+        image = _get_image_type(container_name, config)
     return image.tags()
