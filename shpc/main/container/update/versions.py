@@ -63,7 +63,6 @@ def filter_versions(tags, filters=None, max_length=5):
     # The sorting will tag a subset with "remove" that aren't sortable
     # This has latest at the top
     versions.sort(reverse=True)
-
     # Now only take the top major / minor of each
     filtered = []
     seen = set()

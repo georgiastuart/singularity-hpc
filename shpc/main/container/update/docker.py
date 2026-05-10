@@ -33,11 +33,13 @@ class DockerImage:
         if response.status_code == 429:
             retry_seconds = response.headers.get("Retry-After", "unknown")
             logger.warning("Rate limit hit for %s, retrying after %s seconds" % (url, retry_seconds))
-            time.sleep(int(retry_seconds))
+            time.sleep(int(retry_seconds) + 1)
             response = requests.get(url)
 
+        if response.status_code == 404:
+            raise ValueError(f"Request to {url} returned 404.")
         if response.status_code != 200:
-            logger.exit("Issue with request %s" % url)
+            logger.exit("Issue with request %s. Status code: %d" % (url, response.status_code))
 
         return response
 
@@ -105,26 +107,29 @@ class QuayDockerImage(DockerImage):
             page += 1
         return tags
     
-    def tags(self, force_refresh=False):
-        if self.tag_response is None or force_refresh:
+    def tags(self):
+        if self.tag_response is None:
             self.tag_response = self._query_tag_api()
         tags = [x["name"] for x in self.tag_response]
         # Don't include tags for vex or sbom
         tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
         return tags
 
-    def digest(self, tag, force_refresh=False):
+    def digest(self, tag):
         if self.tag_response is not None:
             for tag_info in self.tag_response:
                 if tag_info["name"] == tag:
                     return tag_info["manifest_digest"]
-        tag_response = self._query_tag_api(tag=tag)
-        for tag_info in tag_response:
-            if tag_info["name"] == tag:
-                return tag_info["manifest_digest"]
-        logger.exit(
-            f"The tag {tag} you provided is not known. Check that it and the container both exist."
-        )
+        try:
+            tag_response = self._query_tag_api(tag=tag)
+            for tag_info in tag_response:
+                if tag_info["name"] == tag:
+                    return tag_info["manifest_digest"]
+        except ValueError:
+            logger.warning(
+                f"The tag {tag} you provided is not known. Check that it and the container both exist."
+            )
+            return None
 class DockerHubImage(DockerImage):
 
     """
@@ -160,23 +165,35 @@ class DockerHubImage(DockerImage):
                 break
         return tag_responses
 
-    def tags(self, force_refresh=False):
-        if self.tag_response is None or force_refresh:
+    def tags(self):
+        if self.tag_response is None:
             self.tag_response = self._query_tag_api()
         tags = [x["name"] for x in self.tag_response]
         # Don't include tags for vex or sbom
         tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
         return tags
 
-    def digest(self, tag, force_refresh=False):
+    def digest(self, tag):
+        tag_dict = None
+        print(tag)
         if self.tag_response is not None:
             for tag_info in self.tag_response:
                 if tag_info["name"] == tag:
-                    return tag_info["digest"]
-        tag_response = self._query_tag_api(tag=tag)
-        for tag_info in tag_response:
-            if tag_info["name"] == tag:
-                return tag_info["digest"]
+                    tag_dict = tag_info
+                    break
+        else:
+            tag_response = self._query_tag_api(tag=tag)
+            for tag_info in tag_response:
+                if tag_info["name"] == tag:
+                    tag_dict = tag_info
+                    break
+                
+        if tag_dict:
+            digest = tag_dict.get("digest", None)
+            if digest:
+                return digest
+            else:
+                return tag_dict.get("images", [{}])[0].get("digest", "unknown")
         logger.exit(
             f"The tag {tag} you provided is not known. Check that it and the container both exist."
         )
@@ -212,7 +229,7 @@ class NGCImage(DockerImage):
         tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
         return tags
 
-    def digest(self, tag, force_refresh=False):
+    def digest(self, tag):
         if self.tag_response is not None:
             for tag_info in self.tag_response:
                 if tag_info["tag"] == tag:
