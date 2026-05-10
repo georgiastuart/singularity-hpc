@@ -1420,16 +1420,17 @@ If you are using an earlier release than 0.0.58 you can accomplish the same as f
         shpc update ${name} --dry-run
       done
 
-As of version <NEW VERSION>, there's support to clear all existing tags in the
+As of version 0.1.34, there's support to clear all existing tags in the
 `container.yaml` file and replace with the new tags. This is useful if you need
 to recover your `container.yaml` from a bad state, or if you want to change the
-filtering scheme and regenerate the whole tag collection.
+filtering scheme and regenerate the whole tag collection. **Check the output with
+`--dry-run` first, this option is destructive!**
 
 .. code-block:: console
 
-    $ shpc update --purge
+    $ shpc update --purge --dry-run
 
-As of version <NEW VERSION>, you can specify the maximum number of new tags to add
+As of version 0.1.34, you can specify the maximum number of new tags to add
 from the command line. Without the flag, the default is up to 5 new tags. This is
 particularly helpful for generating new `container.yaml` files from stubs, or
 when used in combination with `--purge`.
