@@ -2,6 +2,7 @@ __author__ = "Vanessa Sochat"
 __copyright__ = "Copyright 2021-2025, Vanessa Sochat"
 __license__ = "MPL 2.0"
 
+import os
 import re
 import time
 
@@ -176,6 +177,50 @@ class DockerHubImage(DockerImage):
         tag_response = self._query_tag_api(tag=tag)
         for tag_info in tag_response:
             if tag_info["name"] == tag:
+                return tag_info["digest"]
+        logger.exit(
+            f"The tag {tag} you provided is not known. Check that it and the container both exist."
+        )
+
+class NGCImage(DockerImage):
+
+    """
+    A thin client for getting metadata about an image on NGC.
+    """
+
+    def __init__(self, container_name):
+        super().__init__(container_name)
+        self.apiroot = None
+        self.container_name = container_name.replace("nvcr.io/", "", 1)
+
+        from ngcsdk import Client
+        self.client = Client()
+        self.client.configure(
+            os.environ.get("SHPC_NGC_API_KEY"), 
+        )
+
+        self.tag_response = None
+    
+    def _query_tag_api(self):
+        image_list = self.client.registry.image.list(self.container_name)
+        return [image.toDict() for image in image_list]
+    
+    def tags(self):
+        if self.tag_response is None:
+            self.tag_response = self._query_tag_api()
+        tags = [x["tag"] for x in self.tag_response]
+        # Don't include tags for vex or sbom
+        tags = [x for x in tags if not re.search("[.](sbom|vex)$", x)]
+        return tags
+
+    def digest(self, tag, force_refresh=False):
+        if self.tag_response is not None:
+            for tag_info in self.tag_response:
+                if tag_info["tag"] == tag:
+                    return tag_info["digest"]
+        tag_response = self._query_tag_api(tag=tag)
+        for tag_info in tag_response:
+            if tag_info["tag"] == tag:
                 return tag_info["digest"]
         logger.exit(
             f"The tag {tag} you provided is not known. Check that it and the container both exist."

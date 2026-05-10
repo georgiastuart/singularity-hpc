@@ -5,7 +5,7 @@ __license__ = "MPL 2.0"
 from shpc.logger import logger
 
 from .diff import print_diff
-from .docker import DockerImage, DockerHubImage, QuayDockerImage
+from .docker import DockerImage, DockerHubImage, NGCImage, QuayDockerImage
 from .versions import filter_versions
 
 assert print_diff
@@ -129,6 +129,8 @@ def _get_image_type(container_name, config):
             image = DockerHubImage(container_name)
         elif container_prefix == "quay.io":
             image = QuayDockerImage(container_name)
+        elif container_prefix == "nvcr.io":
+            image = NGCImage(container_name)
 
     return image if image else DockerImage(container_name)
 
