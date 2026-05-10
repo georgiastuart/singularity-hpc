@@ -2,6 +2,8 @@ __author__ = "Vanessa Sochat"
 __copyright__ = "Copyright 2021-2025, Vanessa Sochat"
 __license__ = "MPL 2.0"
 
+import os
+
 from shpc.logger import logger
 
 from .diff import print_diff
@@ -122,7 +124,7 @@ def _get_image_type(container_name, config):
         return DockerHubImage(container_name)
     elif container_prefix == "quay.io":
         return QuayDockerImage(container_name)
-    elif container_prefix == "nvcr.io":
+    elif (container_prefix == "nvcr.io") and ("SHPC_NGC_API_KEY" in os.environ):
         return NGCImage(container_name)
     else:
         return DockerImage(container_name)
