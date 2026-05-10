@@ -24,29 +24,36 @@ class DockerImage:
         self.apiroot = "https://crane.ggcr.dev"
         self.tag_response = None
 
-    def get_request(self, url):
+    def get_request(self, url, attempt=0):
         """
         Perform a get request, expecting status code 200.
         """
-        response = requests.get(url)
-
-        # Try to retry once if rate limited
-        if response.status_code == 429:
-            retry_seconds = response.headers.get("Retry-After", "unknown")
-            logger.warning(
-                "Rate limit hit for %s, retrying after %s seconds"
-                % (url, retry_seconds)
-            )
-            time.sleep(int(retry_seconds) + 1)
+        try:
             response = requests.get(url)
+            response.raise_for_status()
 
-        if response.status_code == 404:
-            raise ValueError(f"Request to {url} returned 404.")
+        except requests.exceptions.HTTPError as e:
+            # Try to retry if rate limited
+            if e.response.status_code == 429:
+                retry_seconds = e.response.headers.get("Retry-After", "unknown")
+                logger.warning(
+                    "Rate limit hit for %s, retrying after %s seconds"
+                    % (url, retry_seconds)
+                )
+                time.sleep(int(retry_seconds) + 1)
+                if attempt < 5:
+                    return self.get_request(url, attempt + 1)
 
-        if response.status_code != 200:
-            logger.exit(
-                "Issue with request %s. Status code: %d" % (url, response.status_code)
-            )
+            if e.response.status_code == 404:
+                raise ValueError(f"Request to {url} returned 404, not found.")
+
+            if e.response.status_code == 401:
+                logger.exit(
+                    f"Unauthorized access to {url}. This image may be in a private repository. If this is expected, check your credentials."
+                )
+
+            # Pass along things that aren't handled otherwise
+            raise e
 
         return response
 
@@ -143,7 +150,7 @@ class QuayDockerImage(DockerImage):
             has_more = response.get("has_additional") is True
             page += 1
         return {
-            tag["name"]: tag.get("manifest_digest", "unknown")
+            tag.get("name"): tag.get("manifest_digest", "unknown")
             for tag in tags
             if tag.get("name") is not None
         }
