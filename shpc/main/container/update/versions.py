@@ -37,25 +37,11 @@ def filter_versions(tags, filters=None, max_length=5):
     """
 
     filtered_tags = [x for x in tags]
-    and_filters = filters or []
-    or_filters = []
-
-    try:
-        and_filters = filters["and"]
-    except (KeyError, TypeError):
-        pass
-
-    try:
-        or_filters = filters["or"]
-    except (KeyError, TypeError):
-        pass
+    filters = filters or []
 
     if tags and filters:
-        for pattern in and_filters:
+        for pattern in filters:
             filtered_tags = [x for x in filtered_tags if re.search(pattern, x)]
-
-        for pattern in or_filters:
-            filtered_tags.extend([x for x in tags if re.search(pattern, x)])
 
     # Convert to TaggedLooseVersion
     versions = [TaggedLooseVersion(x) for x in filtered_tags]
